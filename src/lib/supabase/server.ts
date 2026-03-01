@@ -12,10 +12,12 @@ export async function supabaseServer() {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
+
+        // IMPORTANT:
+        // In Next.js Server Components, cookies cannot be modified.
+        // Session refresh cookie writes are handled in middleware.ts.
+        setAll() {
+          // no-op on purpose
         },
       },
     }
