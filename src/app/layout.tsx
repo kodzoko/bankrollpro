@@ -2,6 +2,7 @@ import "./globals.css";
 import Link from "next/link";
 import type { Metadata } from "next";
 import ToastProvider from "@/components/ToastProvider";
+import LogoutButton from "@/components/LogoutButton";
 
 export const metadata: Metadata = {
   title: "BankrollPro",
@@ -36,13 +37,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <NavLink href="/bets" label="Bets" />
                 <NavLink href="/settings" label="Settings" />
               </nav>
+
+              {/* Logout */}
+              <div className="mt-8 border-t pt-4">
+                <LogoutButton />
+              </div>
             </aside>
 
             {/* Main */}
             <div className="min-w-0 flex-1">
-              <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">
-                {children}
-              </div>
+              <div className="mx-auto w-full max-w-6xl px-4 py-6 md:px-6">{children}</div>
             </div>
           </div>
         </ToastProvider>

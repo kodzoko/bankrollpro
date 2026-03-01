@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import AddBetForm from "./AddBetForm";
 import EditBetForm from "./EditBetForm";
 import { supabaseServer } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 
 function safeNumber(x: any) {
   const n = Number(x);
@@ -19,11 +18,9 @@ export default async function BetsPage() {
   const { data: auth } = await supabase.auth.getUser();
 
   const userId = auth.user?.id;
-  if (!userId) {
-    redirect("/login");
-  }
+  if (!userId) redirect("/login");
 
-  const { data: rowsRaw, error } = await supabaseAdmin
+  const { data: rowsRaw, error } = await supabase
     .from("bets")
     .select("id, placed_at, status, stake, profit_loss, odds, selection, created_at")
     .eq("user_id", userId)
@@ -35,18 +32,15 @@ export default async function BetsPage() {
   return (
     <main className="p-6">
       <div className="mx-auto w-full max-w-5xl">
-        {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Bets</h1>
           <div className="mt-1 text-sm text-slate-600">Add and manage your bets.</div>
         </div>
 
-        {/* Add */}
         <div className="rounded-2xl border bg-white p-5 shadow-sm">
           <AddBetForm />
         </div>
 
-        {/* List */}
         <div className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
             <h2 className="text-lg font-semibold">Recent Bets</h2>
@@ -78,7 +72,7 @@ export default async function BetsPage() {
                     <td className="border-b py-3 pr-3">{safeNumber(r.odds)}</td>
                     <td className="border-b py-3 pr-3">{r.selection ?? "—"}</td>
                     <td className="border-b py-3 pr-3">
-                      <EditBetForm bet={r} />
+                      <EditBetForm initial={r} />
                     </td>
                   </tr>
                 ))}

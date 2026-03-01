@@ -3,7 +3,6 @@ import { redirect } from "next/navigation";
 import AddAccountForm from "./AddAccountForm";
 import AccountsList from "./AccountsList";
 import { supabaseServer } from "@/lib/supabase/server";
-import { supabaseAdmin } from "@/lib/supabase/admin";
 
 function safeNumber(x: any) {
   const n = Number(x);
@@ -27,11 +26,9 @@ export default async function AccountsPage() {
   const { data: auth } = await supabase.auth.getUser();
 
   const userId = auth.user?.id;
-  if (!userId) {
-    redirect("/login");
-  }
+  if (!userId) redirect("/login");
 
-  const { data: accountsRaw, error } = await supabaseAdmin
+  const { data: accountsRaw, error } = await supabase
     .from("bookmaker_accounts")
     .select("id, name, currency, current_balance, created_at")
     .eq("user_id", userId)
@@ -50,13 +47,10 @@ export default async function AccountsPage() {
   return (
     <main className="p-6">
       <div className="mx-auto w-full max-w-5xl">
-        {/* Header */}
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Accounts</h1>
-            <div className="mt-1 text-sm text-slate-600">
-              Manage your bookmaker accounts and balances.
-            </div>
+            <div className="mt-1 text-sm text-slate-600">Manage your bookmaker accounts and balances.</div>
           </div>
 
           <div className="inline-flex items-center gap-2 rounded-2xl border bg-white px-4 py-3 shadow-sm">
@@ -65,12 +59,10 @@ export default async function AccountsPage() {
           </div>
         </div>
 
-        {/* Add form */}
         <div className="rounded-2xl border bg-white p-5 shadow-sm">
           <AddAccountForm />
         </div>
 
-        {/* List + edit */}
         <div className="mt-6">
           <AccountsList initial={accounts} />
         </div>
