@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+
 import { supabaseServer } from "@/lib/supabase/server";
 import { supabaseAdmin } from "@/lib/supabase/admin";
 
@@ -30,7 +32,7 @@ function formatGBP(n: number) {
 type RiskLevel = "green" | "yellow" | "red";
 
 function getRisk(bankroll: number, stakedPct: number, betCount: number) {
-  // Rules (as agreed):
+  // Rules:
   // bankroll <= 0  -> 🔴
   // stakedPct > 25 -> 🔴
   // 10–25          -> 🟡
@@ -39,24 +41,19 @@ function getRisk(bankroll: number, stakedPct: number, betCount: number) {
   if (bankroll <= 0) {
     return { level: "red" as RiskLevel, label: "High risk", emoji: "🔴", note: "Bankroll is 0 (or below)." };
   }
-
   if (stakedPct > 25) {
     return { level: "red" as RiskLevel, label: "High risk", emoji: "🔴", note: "Exposure is above 25% of bankroll." };
   }
-
   if (stakedPct >= 10 && stakedPct <= 25) {
     return { level: "yellow" as RiskLevel, label: "Medium risk", emoji: "🟡", note: "Exposure is between 10% and 25% of bankroll." };
   }
-
-  // stakedPct < 10
   if (betCount < 5) {
     return { level: "yellow" as RiskLevel, label: "Medium risk", emoji: "🟡", note: "Low exposure, but insufficient sample size (< 5 bets)." };
   }
-
   return { level: "green" as RiskLevel, label: "Low risk", emoji: "🟢", note: "Exposure is below 10% of bankroll." };
 }
 
-function pillClass(level: RiskLevel) {
+function riskPillClass(level: RiskLevel) {
   if (level === "red") return "bg-red-50 text-red-700 border-red-200";
   if (level === "yellow") return "bg-amber-50 text-amber-700 border-amber-200";
   return "bg-emerald-50 text-emerald-700 border-emerald-200";
@@ -64,106 +61,17 @@ function pillClass(level: RiskLevel) {
 
 function disciplinePill(score: number) {
   if (score >= 80) {
-    return { level: "green" as RiskLevel, emoji: "🟢", label: "Strong discipline", className: pillClass("green") };
+    return { emoji: "🟢", label: "Strong discipline", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
   }
   if (score >= 60) {
-    return { level: "yellow" as RiskLevel, emoji: "🟡", label: "Moderate discipline", className: pillClass("yellow") };
+    return { emoji: "🟡", label: "Moderate discipline", className: "bg-amber-50 text-amber-700 border-amber-200" };
   }
-  return { level: "red" as RiskLevel, emoji: "🔴", label: "Weak discipline", className: pillClass("red") };
-}
-
-function stdDev(values: number[]) {
-  if (!values.length) return 0;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  const v = values.reduce((acc, x) => acc + (x - mean) * (x - mean), 0) / values.length;
-  return Math.sqrt(v);
-}
-
-type BetRow = {
-  id: string;
-  placed_at: string;
-  status: string;
-  stake: number;
-  profit_loss: number;
-  odds: number;
-  selection: string;
-};
-
-function computeDiscipline(rows: BetRow[], bankroll: number) {
-  const totalStaked = rows.reduce((a, r) => a + safeNumber(r.stake), 0);
-  const stakedPctOfBankroll = bankroll > 0 ? (totalStaked / bankroll) * 100 : 0;
-
-  const maxStake = rows.reduce((m, r) => Math.max(m, safeNumber(r.stake)), 0);
-  const maxStakePct = bankroll > 0 ? (maxStake / bankroll) * 100 : 0;
-
-  let currentLossStreak = 0;
-  for (const r of rows) {
-    if (r.status === "lost") currentLossStreak++;
-    else break;
-  }
-
-  // Stake variance as % of bankroll (std dev of stake sizes)
-  const stakes = rows.map((r) => safeNumber(r.stake));
-  const stakeStd = stdDev(stakes);
-  const stakeVarPct = bankroll > 0 ? (stakeStd / bankroll) * 100 : 0;
-
-  let score = 100;
-
-  // Exposure penalty
-  if (stakedPctOfBankroll > 25) score -= 25;
-  else if (stakedPctOfBankroll > 15) score -= 15;
-  else if (stakedPctOfBankroll > 10) score -= 10;
-
-  // Max stake penalty
-  if (maxStakePct > 15) score -= 20;
-  else if (maxStakePct > 10) score -= 10;
-
-  // Loss streak penalty
-  if (currentLossStreak >= 5) score -= 25;
-  else if (currentLossStreak >= 3) score -= 15;
-
-  // Stake variance penalty (light)
-  if (stakeVarPct > 8) score -= 10;
-  else if (stakeVarPct > 4) score -= 5;
-
-  if (score < 0) score = 0;
-
-  const reasons: string[] = [];
-  if (bankroll <= 0) reasons.push("bankroll is 0");
-  if (stakedPctOfBankroll > 10) reasons.push("high exposure");
-  if (maxStakePct > 10) reasons.push("large single stake");
-  if (currentLossStreak >= 3) reasons.push("loss streak");
-  if (stakeVarPct > 4) reasons.push("inconsistent stake sizing");
-
-  const why = reasons.length ? reasons.join(", ") : "stable exposure and sizing";
-
-  return {
-    score,
-    why,
-    maxStakePct,
-    currentLossStreak,
-    stakeVarPct,
-    stakedPctOfBankroll,
-    totalStaked,
-  };
-}
-
-function volatilityLabel(stdPct: number) {
-  if (stdPct >= 8) return { level: "red" as RiskLevel, emoji: "🔴", label: "High volatility", className: pillClass("red") };
-  if (stdPct >= 4) return { level: "yellow" as RiskLevel, emoji: "🟡", label: "Moderate volatility", className: pillClass("yellow") };
-  return { level: "green" as RiskLevel, emoji: "🟢", label: "Low volatility", className: pillClass("green") };
-}
-
-function trendLabel(delta: number) {
-  // delta = score(7d) - score(30d)
-  if (delta >= 5) return { level: "green" as RiskLevel, emoji: "🟢", label: "Improving", className: pillClass("green") };
-  if (delta <= -5) return { level: "red" as RiskLevel, emoji: "🔴", label: "Deteriorating", className: pillClass("red") };
-  return { level: "yellow" as RiskLevel, emoji: "🟡", label: "Stable", className: pillClass("yellow") };
+  return { emoji: "🔴", label: "Weak discipline", className: "bg-red-50 text-red-700 border-red-200" };
 }
 
 function tabClass(active: boolean) {
   return active
-    ? "rounded-xl border bg-black px-3 py-2 text-sm text-white"
+    ? "rounded-xl border border-slate-900 bg-slate-900 px-3 py-2 text-sm text-white"
     : "rounded-xl border bg-white px-3 py-2 text-sm hover:bg-slate-50";
 }
 
@@ -188,9 +96,12 @@ export default async function DashboardRangePage({
 
   const range = parseRange(resolvedParams?.range);
 
+  // ✅ HARD GUARD
   const supabase = await supabaseServer();
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth.user?.id ?? "";
+  const { data: auth, error: authErr } = await supabase.auth.getUser();
+  if (authErr || !auth.user?.id) redirect("/login");
+
+  const userId = auth.user.id;
 
   // Filters from URL
   const status = (resolvedSearch?.status as string) || "all";
@@ -198,12 +109,12 @@ export default async function DashboardRangePage({
   const from = (resolvedSearch?.from as string) || "";
   const to = (resolvedSearch?.to as string) || "";
 
-  // Range filter (all/7d/30d)
+  // Date range from `range`
   const days = getDaysForRange(range);
   const now = new Date();
   const rangeFrom = days ? new Date(now.getTime() - days * 24 * 60 * 60 * 1000) : null;
 
-  // Bets query (current range + filters)
+  // Bets query
   let q = supabaseAdmin
     .from("bets")
     .select("id, placed_at, status, stake, profit_loss, odds, selection", { count: "exact" })
@@ -218,9 +129,9 @@ export default async function DashboardRangePage({
   q = q.order("placed_at", { ascending: false }).limit(200);
 
   const { data: rowsRaw } = await q;
-  const rows = (rowsRaw ?? []) as any as BetRow[];
+  const rows = rowsRaw ?? [];
 
-  // Bankroll = sum(current_balance)
+  // Bankroll
   const { data: accountsRaw } = await supabaseAdmin
     .from("bookmaker_accounts")
     .select("current_balance, currency")
@@ -229,10 +140,10 @@ export default async function DashboardRangePage({
   const accounts = accountsRaw ?? [];
   const bankroll = accounts.reduce((acc: number, a: any) => acc + safeNumber(a.current_balance), 0);
 
-  // Core metrics
+  // Metrics
   const settledCount = rows.length;
-  const totalStaked = rows.reduce((a: number, r: any) => a + safeNumber(r.stake), 0);
-  const settledProfit = rows.reduce((a: number, r: any) => a + safeNumber(r.profit_loss), 0);
+  const totalStaked = rows.reduce((a: number, b: any) => a + safeNumber(b.stake), 0);
+  const settledProfit = rows.reduce((a: number, b: any) => a + safeNumber(b.profit_loss), 0);
   const roi = totalStaked > 0 ? (settledProfit / totalStaked) * 100 : 0;
   const wins = rows.filter((r: any) => r.status === "won").length;
   const winRate = settledCount > 0 ? (wins / settledCount) * 100 : 0;
@@ -240,47 +151,45 @@ export default async function DashboardRangePage({
   const stakedPctOfBankroll = bankroll > 0 ? (totalStaked / bankroll) * 100 : 0;
   const risk = getRisk(bankroll, stakedPctOfBankroll, settledCount);
 
-  // Discipline (current range)
-  const d = computeDiscipline(rows, bankroll);
-  const discipline = disciplinePill(d.score);
+  // Discipline Score (v1)
+  const maxStake = rows.reduce((max: number, r: any) => Math.max(max, safeNumber(r.stake)), 0);
+  const maxStakePct = bankroll > 0 ? (maxStake / bankroll) * 100 : 0;
 
-  // Volatility (PnL std dev vs bankroll)
-  const pnls = rows.map((r) => safeNumber(r.profit_loss));
-  const pnlStd = stdDev(pnls);
-  const pnlStdPct = bankroll > 0 ? (pnlStd / bankroll) * 100 : 0;
-  const vol = volatilityLabel(pnlStdPct);
+  let currentLossStreak = 0;
+  for (const r of rows) {
+    if (r.status === "lost") currentLossStreak++;
+    else break;
+  }
 
-  // Trend: compare 7d vs 30d discipline (ignoring current range, always computed)
-  const d7From = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const d30From = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  let disciplineScore = 100;
 
-  const { data: rows7Raw } = await supabaseAdmin
-    .from("bets")
-    .select("id, placed_at, status, stake, profit_loss, odds, selection")
-    .eq("user_id", userId)
-    .gte("placed_at", d7From.toISOString())
-    .order("placed_at", { ascending: false })
-    .limit(500);
+  if (stakedPctOfBankroll > 25) disciplineScore -= 25;
+  else if (stakedPctOfBankroll > 15) disciplineScore -= 15;
+  else if (stakedPctOfBankroll > 10) disciplineScore -= 10;
 
-  const { data: rows30Raw } = await supabaseAdmin
-    .from("bets")
-    .select("id, placed_at, status, stake, profit_loss, odds, selection")
-    .eq("user_id", userId)
-    .gte("placed_at", d30From.toISOString())
-    .order("placed_at", { ascending: false })
-    .limit(1000);
+  if (maxStakePct > 15) disciplineScore -= 20;
+  else if (maxStakePct > 10) disciplineScore -= 10;
 
-  const d7 = computeDiscipline(((rows7Raw ?? []) as any) as BetRow[], bankroll);
-  const d30 = computeDiscipline(((rows30Raw ?? []) as any) as BetRow[], bankroll);
+  if (currentLossStreak >= 5) disciplineScore -= 25;
+  else if (currentLossStreak >= 3) disciplineScore -= 15;
 
-  const delta = Math.round(d7.score - d30.score);
-  const trend = trendLabel(delta);
+  if (disciplineScore < 0) disciplineScore = 0;
 
-  // Daily PnL buckets
+  const discipline = disciplinePill(disciplineScore);
+
+  // Why text
+  const reasons: string[] = [];
+  if (bankroll <= 0) reasons.push("bankroll is 0");
+  if (stakedPctOfBankroll > 10) reasons.push("high exposure");
+  if (maxStakePct > 10) reasons.push("large single stake");
+  if (currentLossStreak >= 3) reasons.push("loss streak");
+  const why = reasons.length ? reasons.join(", ") : "stable exposure and sizing";
+
+  // Daily PnL
   const pnlByDay = new Map<string, number>();
   for (const r of rows) {
-    const dt = new Date(r.placed_at);
-    const key = dt.toISOString().slice(0, 10);
+    const d = new Date(r.placed_at);
+    const key = d.toISOString().slice(0, 10);
     pnlByDay.set(key, (pnlByDay.get(key) ?? 0) + safeNumber(r.profit_loss));
   }
   const daily = Array.from(pnlByDay.entries())
@@ -301,266 +210,214 @@ export default async function DashboardRangePage({
 
   const activeFiltersText = `status=${status || "all"} | minStake=${minStake || "—"} | from=${from || "—"} | to=${to || "—"}`;
 
-  const currentRangeLabel = range === "all" ? "All Time" : range === "7d" ? "Last 7 Days" : "Last 30 Days";
+  const activeAll = range === "all";
+  const active7d = range === "7d";
+  const active30d = range === "30d";
 
   return (
     <main className="p-6">
-      <div className="mx-auto w-full max-w-5xl">
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold">Dashboard</h1>
-            <div className="mt-1 text-sm text-slate-600">
-              Current range: <span className="font-semibold">{currentRangeLabel}</span>
-            </div>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold">Dashboard</h1>
+          <div className="mt-1 text-sm text-slate-600">
+            Current range:{" "}
+            <span className="font-semibold">{range === "all" ? "All Time" : range}</span>
           </div>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <ShareReportButton range={range} />
-            <Link className={tabClass(range === "all")} href={linkAll}>
-              All Time
-            </Link>
-            <Link className={tabClass(range === "7d")} href={link7d}>
-              Last 7 Days
-            </Link>
-            <Link className={tabClass(range === "30d")} href={link30d}>
-              Last 30 Days
-            </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <ShareReportButton range={range} />
+          <Link className={tabClass(activeAll)} href={linkAll}>All Time</Link>
+          <Link className={tabClass(active7d)} href={link7d}>Last 7 Days</Link>
+          <Link className={tabClass(active30d)} href={link30d}>Last 30 Days</Link>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Filters</h2>
+          <div className="text-xs text-slate-500">
+            Tip: Filters are in the URL, so you can share the exact view.
           </div>
+        </div>
+
+        {/* ✅ BetsFilters prop fix (build için) */}
+        <BetsFilters />
+
+        <div className="mt-3 text-xs text-slate-600">
+          Active Filters: <span className="font-mono">{activeFiltersText}</span>
+        </div>
+      </div>
+
+      {/* Metrics */}
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs text-slate-500">Settled Bets</div>
+          <div className="mt-1 text-2xl font-bold">{settledCount}</div>
         </div>
 
         <div className="rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Filters</h2>
-            <div className="text-xs text-slate-500">Tip: Filters are in the URL, so you can share the exact view.</div>
-          </div>
-
-          <BetsFilters currentRange={range} />
-
-          <div className="mt-3 text-xs text-slate-600">
-            Active Filters: <span className="font-mono">{activeFiltersText}</span>
-          </div>
+          <div className="text-xs text-slate-500">Total Staked</div>
+          <div className="mt-1 text-2xl font-bold">{formatGBP(totalStaked)}</div>
         </div>
 
-        {/* Metrics */}
-        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-4">
-          <div className="rounded-2xl border bg-white p-5 shadow-sm">
-            <div className="text-xs text-slate-500">Settled Bets</div>
-            <div className="mt-1 text-2xl font-bold">{settledCount}</div>
-          </div>
-
-          <div className="rounded-2xl border bg-white p-5 shadow-sm">
-            <div className="text-xs text-slate-500">Total Staked</div>
-            <div className="mt-1 text-2xl font-bold">{formatGBP(totalStaked)}</div>
-          </div>
-
-          <div className="rounded-2xl border bg-white p-5 shadow-sm">
-            <div className="text-xs text-slate-500">Settled Profit</div>
-            <div className="mt-1 text-2xl font-bold">{formatGBP(settledProfit)}</div>
-          </div>
-
-          <div className="rounded-2xl border bg-white p-5 shadow-sm">
-            <div className="text-xs text-slate-500">ROI</div>
-            <div className="mt-1 text-2xl font-bold">{roi.toFixed(2)}%</div>
-          </div>
-
-          <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-2">
-            <div className="text-xs text-slate-500">Win Rate</div>
-            <div className="mt-1 text-2xl font-bold">{winRate.toFixed(2)}%</div>
-          </div>
-
-          <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-2">
-            <div className="text-xs text-slate-500">Rows</div>
-            <div className="mt-1 text-2xl font-bold">{rows.length}</div>
-          </div>
-
-          <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-2">
-            <div className="text-xs text-slate-500">Bankroll</div>
-            <div className="mt-1 text-2xl font-bold">{formatGBP(bankroll)}</div>
-          </div>
-
-          <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-2">
-            <div className="text-xs text-slate-500">Total Staked / Bankroll</div>
-            <div className="mt-1 text-2xl font-bold">{stakedPctOfBankroll.toFixed(2)}%</div>
-          </div>
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs text-slate-500">Settled Profit</div>
+          <div className="mt-1 text-2xl font-bold">{formatGBP(settledProfit)}</div>
         </div>
 
-        {/* Risk Engine (compact, SaaS-like) */}
-        <div className="mt-6 rounded-2xl border bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs text-slate-500">ROI</div>
+          <div className="mt-1 text-2xl font-bold">{roi.toFixed(2)}%</div>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-2">
+          <div className="text-xs text-slate-500">Win Rate</div>
+          <div className="mt-1 text-2xl font-bold">{winRate.toFixed(2)}%</div>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-2">
+          <div className="text-xs text-slate-500">Rows</div>
+          <div className="mt-1 text-2xl font-bold">{rows.length}</div>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-2">
+          <div className="text-xs text-slate-500">Bankroll</div>
+          <div className="mt-1 text-2xl font-bold">{formatGBP(bankroll)}</div>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-2">
+          <div className="text-xs text-slate-500">Total Staked / Bankroll</div>
+          <div className="mt-1 text-2xl font-bold">{stakedPctOfBankroll.toFixed(2)}%</div>
+        </div>
+
+        {/* Discipline */}
+        <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-semibold">Risk Engine</div>
-
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${pillClass(risk.level)}`}>
-                  <span>{risk.emoji}</span>
-                  <span className="font-semibold">{risk.label}</span>
-                </span>
-
+              <div className="text-xs text-slate-500">Bankroll Discipline Score</div>
+              <div className="mt-2 flex items-center gap-2">
                 <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${discipline.className}`}>
                   <span>{discipline.emoji}</span>
                   <span className="font-semibold">{discipline.label}</span>
                 </span>
-
-                <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${vol.className}`}>
-                  <span>{vol.emoji}</span>
-                  <span className="font-semibold">{vol.label}</span>
-                </span>
-
-                <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${trend.className}`}>
-                  <span>{trend.emoji}</span>
-                  <span className="font-semibold">{trend.label}</span>
-                </span>
+                <span className="text-sm text-slate-600">{why}</span>
               </div>
-
-              <div className="mt-2 text-sm text-slate-700">{risk.note}</div>
             </div>
 
-            <div className="text-left md:text-right">
-              <div className="text-4xl font-extrabold leading-none">{d.score} / 100</div>
-              <div className="mt-1 text-sm text-slate-600">{d.why}</div>
-              <div className="mt-2 text-xs text-slate-500">
-                Max stake: {d.maxStakePct.toFixed(2)}% | Loss streak: {d.currentLossStreak} | Stake variance: {d.stakeVarPct.toFixed(2)}%
+            <div className="text-right">
+              <div className="text-3xl font-bold">{disciplineScore} / 100</div>
+              <div className="mt-1 text-sm text-slate-600">
+                Max stake: {maxStakePct.toFixed(2)}% | Loss streak: {currentLossStreak}
               </div>
             </div>
           </div>
+        </div>
+      </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="text-sm font-semibold">Volatility Index</div>
-              <div className="mt-1 text-sm text-slate-600">PnL std dev vs bankroll</div>
-              <div className="mt-4 space-y-1 text-sm">
-                <div>
-                  <span className="font-semibold">Std dev (PnL):</span> {formatGBP(pnlStd)}
-                </div>
-                <div>
-                  <span className="font-semibold">As % of bankroll:</span> {pnlStdPct.toFixed(2)}%
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="text-sm font-semibold">Risk Trend</div>
-              <div className="mt-1 text-sm text-slate-600">Last 7d vs last 30d discipline</div>
-              <div className="mt-4 space-y-1 text-sm">
-                <div>
-                  <span className="font-semibold">Score (7d):</span> {d7.score} / 100
-                </div>
-                <div>
-                  <span className="font-semibold">Score (30d):</span> {d30.score} / 100
-                </div>
-                <div>
-                  <span className="font-semibold">Delta:</span> {delta > 0 ? `+${delta}` : `${delta}`}
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-4 shadow-sm">
-              <div className="text-sm font-semibold">Current</div>
-              <div className="mt-4 space-y-1 text-sm">
-                <div>
-                  <span className="font-semibold">Staked:</span> {formatGBP(d.totalStaked)}
-                </div>
-                <div>
-                  <span className="font-semibold">Bankroll:</span> {formatGBP(bankroll)}
-                </div>
-                <div>
-                  <span className="font-semibold">Exposure:</span> {d.stakedPctOfBankroll.toFixed(2)}%
-                </div>
-                <div>
-                  <span className="font-semibold">Bets:</span> {settledCount}
-                </div>
-
-                <div className="pt-2 text-xs text-slate-500">
-                  Max stake: {d.maxStakePct.toFixed(2)}% | Loss streak: {d.currentLossStreak}
-                </div>
-              </div>
-            </div>
+      {/* Risk */}
+      <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border bg-white p-5 shadow-sm md:col-span-2">
+          <div className="text-xs text-slate-500">Risk</div>
+          <div className="mt-2 flex items-center gap-2">
+            <span className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-sm ${riskPillClass(risk.level)}`}>
+              <span>{risk.emoji}</span>
+              <span className="font-semibold">{risk.label}</span>
+            </span>
+            <span className="text-sm text-slate-600">{risk.note}</span>
           </div>
 
-          <div className="mt-4 text-xs text-slate-500">
+          <div className="mt-3 text-xs text-slate-500">
             Rules: bankroll ≤ 0 → High risk | exposure &gt; 25% → High risk | 10–25% → Medium risk | &lt; 10% → Low risk (but &lt; 5 bets → Medium risk)
           </div>
         </div>
 
-        {/* Daily PnL */}
-        <div className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Daily PnL ({currentRangeLabel})</h2>
-            <div className="text-xs text-slate-500">
-              Days: {daily.length} | Rows: {rows.length}
-            </div>
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <div className="text-xs text-slate-500">Current</div>
+          <div className="mt-2 text-sm text-slate-700">
+            <div><span className="font-semibold">Staked:</span> {formatGBP(totalStaked)}</div>
+            <div><span className="font-semibold">Bankroll:</span> {formatGBP(bankroll)}</div>
+            <div><span className="font-semibold">Ratio:</span> {stakedPctOfBankroll.toFixed(2)}%</div>
+            <div><span className="font-semibold">Bets:</span> {settledCount}</div>
           </div>
+        </div>
+      </div>
 
-          {daily.length === 0 ? (
-            <div className="rounded-xl border bg-slate-50 p-4 text-sm text-slate-700">No data for this range.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] border-separate border-spacing-0">
-                <thead>
-                  <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                    <th className="border-b py-2 pr-3">Day</th>
-                    <th className="border-b py-2 pr-3">Daily PnL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {daily.map((d) => (
-                    <tr key={d.day} className="text-sm">
-                      <td className="border-b py-3 pr-3">{d.day}</td>
-                      <td className="border-b py-3 pr-3">{formatGBP(d.pnl)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {/* Daily PnL */}
+      <div className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Daily PnL ({range === "all" ? "All Time" : range})</h2>
+          <div className="text-xs text-slate-500">Days: {daily.length} | Rows: {rows.length}</div>
         </div>
 
-        {/* Recent Bets */}
-        <div className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
-          <div className="mb-2">
-            <h2 className="text-lg font-semibold">Recent Bets</h2>
-            <div className="text-sm text-slate-600">Showing up to 200 rows</div>
-          </div>
-
+        {daily.length === 0 ? (
+          <div className="rounded-xl border bg-slate-50 p-4 text-sm text-slate-700">No data for this range.</div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[900px] border-separate border-spacing-0">
+            <table className="min-w-[520px] w-full border-separate border-spacing-0">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
-                  <th className="border-b py-2 pr-3">Created</th>
-                  <th className="border-b py-2 pr-3">Status</th>
-                  <th className="border-b py-2 pr-3">Stake</th>
-                  <th className="border-b py-2 pr-3">Profit</th>
-                  <th className="border-b py-2 pr-3">Odds</th>
-                  <th className="border-b py-2 pr-3">Selection</th>
+                  <th className="border-b py-2 pr-3">Day</th>
+                  <th className="border-b py-2 pr-3">Daily PnL</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((r: any) => (
-                  <tr key={r.id} className="text-sm">
-                    <td className="border-b py-3 pr-3">{new Date(r.placed_at).toLocaleString("en-GB")}</td>
-                    <td className="border-b py-3 pr-3">{r.status}</td>
-                    <td className="border-b py-3 pr-3">{formatGBP(safeNumber(r.stake))}</td>
-                    <td className="border-b py-3 pr-3">{formatGBP(safeNumber(r.profit_loss))}</td>
-                    <td className="border-b py-3 pr-3">{safeNumber(r.odds)}</td>
-                    <td className="border-b py-3 pr-3">{r.selection}</td>
+                {daily.map((d) => (
+                  <tr key={d.day} className="text-sm">
+                    <td className="border-b py-3 pr-3">{d.day}</td>
+                    <td className="border-b py-3 pr-3">{formatGBP(d.pnl)}</td>
                   </tr>
                 ))}
-
-                {rows.length === 0 ? (
-                  <tr>
-                    <td className="py-6 text-sm text-slate-600" colSpan={6}>
-                      No bets found for this selection.
-                    </td>
-                  </tr>
-                ) : null}
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* Recent Bets */}
+      <div className="mt-6 rounded-2xl border bg-white p-5 shadow-sm">
+        <div className="mb-2">
+          <h2 className="text-lg font-semibold">Recent Bets</h2>
+          <div className="text-sm text-slate-600">Showing up to 200 rows</div>
         </div>
 
-        <div className="mt-6">
-          <RecentSharesPanel initial={(recentShares ?? []) as any} />
+        <div className="overflow-x-auto">
+          <table className="min-w-[900px] w-full border-separate border-spacing-0">
+            <thead>
+              <tr className="text-left text-xs uppercase tracking-wide text-slate-500">
+                <th className="border-b py-2 pr-3">Created</th>
+                <th className="border-b py-2 pr-3">Status</th>
+                <th className="border-b py-2 pr-3">Stake</th>
+                <th className="border-b py-2 pr-3">Profit</th>
+                <th className="border-b py-2 pr-3">Odds</th>
+                <th className="border-b py-2 pr-3">Selection</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r: any) => (
+                <tr key={r.id} className="text-sm">
+                  <td className="border-b py-3 pr-3">{new Date(r.placed_at).toLocaleString("en-GB")}</td>
+                  <td className="border-b py-3 pr-3">{r.status}</td>
+                  <td className="border-b py-3 pr-3">{formatGBP(safeNumber(r.stake))}</td>
+                  <td className="border-b py-3 pr-3">{formatGBP(safeNumber(r.profit_loss))}</td>
+                  <td className="border-b py-3 pr-3">{safeNumber(r.odds)}</td>
+                  <td className="border-b py-3 pr-3">{r.selection}</td>
+                </tr>
+              ))}
+              {rows.length === 0 ? (
+                <tr>
+                  <td className="py-6 text-sm text-slate-600" colSpan={6}>
+                    No bets found for this selection.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
+      </div>
+
+      <div className="mt-6">
+        <RecentSharesPanel initial={(recentShares ?? []) as any} />
       </div>
     </main>
   );

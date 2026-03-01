@@ -4,6 +4,14 @@ import AddAccountForm from "./AddAccountForm";
 import AccountsList from "./AccountsList";
 import { supabaseServer } from "@/lib/supabase/server";
 
+type AccountRow = {
+  id: string;
+  name: string;
+  currency: string | null;
+  current_balance: number | null;
+  created_at?: string;
+};
+
 function safeNumber(x: any) {
   const n = Number(x);
   return Number.isFinite(n) ? n : 0;
@@ -23,10 +31,14 @@ function formatMoney(amount: number, currency: string) {
 
 export default async function AccountsPage() {
   const supabase = await supabaseServer();
-  const { data: auth } = await supabase.auth.getUser();
+  const { data: auth, error: authError } = await supabase.auth.getUser();
 
-  const userId = auth.user?.id;
-  if (!userId) redirect("/login");
+  // Hard guard: not logged in -> login
+  if (authError || !auth.user?.id) {
+    redirect("/login");
+  }
+
+  const userId = auth.user.id;
 
   const { data: accountsRaw, error } = await supabase
     .from("bookmaker_accounts")
@@ -34,37 +46,52 @@ export default async function AccountsPage() {
     .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
-  const accounts = (accountsRaw ?? []) as Array<{
-    id: string;
-    name: string;
-    currency: string;
-    current_balance: number;
-  }>;
+  const accounts = (accountsRaw ?? []) as AccountRow[];
 
-  const totalBankroll = accounts.reduce((acc, a) => acc + safeNumber(a.current_balance), 0);
-  const currency = accounts[0]?.currency || "GBP";
+  const totalBankroll = accounts.reduce(
+    (acc, a) => acc + safeNumber(a.current_balance),
+    0
+  );
+
+  const currency = accounts.find((a) => a.currency)?.currency || "GBP";
 
   return (
     <main className="p-6">
       <div className="mx-auto w-full max-w-5xl">
+        {/* Header */}
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Accounts</h1>
-            <div className="mt-1 text-sm text-slate-600">Manage your bookmaker accounts and balances.</div>
+            <div className="mt-1 text-sm text-slate-600">
+              Manage your bookmaker accounts and balances.
+            </div>
           </div>
 
           <div className="inline-flex items-center gap-2 rounded-2xl border bg-white px-4 py-3 shadow-sm">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Total Bankroll</div>
-            <div className="text-lg font-bold">{formatMoney(totalBankroll, currency)}</div>
+            <div className="text-xs uppercase tracking-wide text-slate-500">
+              Total Bankroll
+            </div>
+            <div className="text-lg font-bold">
+              {formatMoney(totalBankroll, currency)}
+            </div>
           </div>
         </div>
 
+        {/* Add form */}
         <div className="rounded-2xl border bg-white p-5 shadow-sm">
           <AddAccountForm />
         </div>
 
+        {/* List + edit */}
         <div className="mt-6">
-          <AccountsList initial={accounts} />
+          <AccountsList
+            initial={accounts.map((a) => ({
+              id: a.id,
+              name: a.name,
+              currency: a.currency || "GBP",
+              current_balance: safeNumber(a.current_balance),
+            }))}
+          />
         </div>
 
         {error ? (
