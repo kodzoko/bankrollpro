@@ -3,27 +3,20 @@
 import { useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+type Range = "all" | "7d" | "30d";
+
 type Props = {
-  currentRange: string; // "all" | "7d" | "30d"
+  currentRange?: Range;
 };
 
-function normaliseRange(r: string) {
-  const x = (r || "all").toLowerCase();
-  if (x === "7d" || x === "30d" || x === "all") return x;
-  return "all";
-}
-
-export default function BetsFilters({ currentRange }: Props) {
+export default function BetsFilters({ currentRange = "all" }: Props) {
   const router = useRouter();
-  const pathname = usePathname();
   const sp = useSearchParams();
+  const pathname = usePathname();
 
-  const range = normaliseRange(currentRange);
-
-  // Read initial values from URL
   const initial = useMemo(() => {
     return {
-      status: (sp.get("status") || "all").toLowerCase(),
+      status: (sp.get("status") || "all") as string,
       minStake: sp.get("minStake") || "",
       from: sp.get("from") || "",
       to: sp.get("to") || "",
@@ -35,94 +28,101 @@ export default function BetsFilters({ currentRange }: Props) {
   const [from, setFrom] = useState(initial.from);
   const [to, setTo] = useState(initial.to);
 
-  function basePath() {
-    // Safety: always navigate to /dashboard/<range>
-    return `/dashboard/${range}`;
-  }
+  function buildUrl(clear = false) {
+    const basePath =
+      pathname?.startsWith("/dashboard/") ? pathname : `/dashboard/${currentRange}`;
 
-  function apply() {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(clear ? {} : sp.toString());
 
-    if (status && status !== "all") params.set("status", status);
-    if (minStake.trim()) params.set("minStake", minStake.trim());
-    if (from.trim()) params.set("from", from.trim());
-    if (to.trim()) params.set("to", to.trim());
+    if (clear) {
+      // nothing
+    } else {
+      params.set("status", status || "all");
+
+      if (minStake) params.set("minStake", minStake);
+      else params.delete("minStake");
+
+      if (from) params.set("from", from);
+      else params.delete("from");
+
+      if (to) params.set("to", to);
+      else params.delete("to");
+    }
 
     const qs = params.toString();
-    router.push(qs ? `${basePath()}?${qs}` : basePath());
+    return qs ? `${basePath}?${qs}` : basePath;
   }
 
-  function clear() {
+  function onApply() {
+    router.push(buildUrl(false));
+  }
+
+  function onClear() {
     setStatus("all");
     setMinStake("");
     setFrom("");
     setTo("");
-    router.push(basePath());
+    router.push(buildUrl(true));
   }
 
   return (
-    <div className="mt-3">
-      <div className="grid gap-3 md:grid-cols-12">
-        {/* Status */}
-        <div className="md:col-span-2">
-          <label className="block text-xs text-slate-500">Status</label>
+    <div className="mt-4">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-12">
+        <div className="md:col-span-3">
+          <label className="block text-xs font-medium text-slate-600">Status</label>
           <select
             className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
             value={status}
             onChange={(e) => setStatus(e.target.value)}
           >
             <option value="all">All</option>
-            <option value="won">Won</option>
-            <option value="lost">Lost</option>
-            <option value="void">Void</option>
+            <option value="won">won</option>
+            <option value="lost">lost</option>
+            <option value="void">void</option>
           </select>
         </div>
 
-        {/* Min Stake */}
-        <div className="md:col-span-2">
-          <label className="block text-xs text-slate-500">Min Stake</label>
+        <div className="md:col-span-3">
+          <label className="block text-xs font-medium text-slate-600">Min Stake</label>
           <input
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
             placeholder="e.g. 5"
-            inputMode="decimal"
             value={minStake}
             onChange={(e) => setMinStake(e.target.value)}
+            inputMode="decimal"
           />
         </div>
 
-        {/* From */}
         <div className="md:col-span-3">
-          <label className="block text-xs text-slate-500">From (YYYY-MM-DD)</label>
+          <label className="block text-xs font-medium text-slate-600">From (YYYY-MM-DD)</label>
           <input
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
             placeholder="YYYY-MM-DD"
             value={from}
             onChange={(e) => setFrom(e.target.value)}
           />
         </div>
 
-        {/* To */}
         <div className="md:col-span-3">
-          <label className="block text-xs text-slate-500">To (YYYY-MM-DD)</label>
+          <label className="block text-xs font-medium text-slate-600">To (YYYY-MM-DD)</label>
           <input
-            className="mt-1 w-full rounded-xl border px-3 py-2 text-sm"
+            className="mt-1 w-full rounded-xl border bg-white px-3 py-2 text-sm"
             placeholder="YYYY-MM-DD"
             value={to}
             onChange={(e) => setTo(e.target.value)}
           />
         </div>
 
-        {/* Actions */}
-        <div className="md:col-span-2 flex items-end gap-2">
+        <div className="md:col-span-12 flex gap-2">
           <button
-            onClick={apply}
-            className="w-full rounded-xl bg-black px-4 py-2 text-sm text-white hover:opacity-90"
+            onClick={onApply}
+            className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white hover:bg-slate-900"
           >
             Apply
           </button>
           <button
-            onClick={clear}
-            className="w-full rounded-xl border bg-slate-100 px-4 py-2 text-sm hover:bg-slate-200"
+            onClick={onClear}
+            className="rounded-xl border bg-white px-4 py-2 text-sm font-semibold hover:bg-slate-50"
           >
             Clear
           </button>

@@ -242,7 +242,7 @@ export default async function DashboardRangePage({
         </div>
 
         {/* ✅ BetsFilters prop fix (build için) */}
-        <BetsFilters />
+        <BetsFilters currentRange={range} />
 
         <div className="mt-3 text-xs text-slate-600">
           Active Filters: <span className="font-mono">{activeFiltersText}</span>
