@@ -10,15 +10,14 @@ export async function supabaseServer() {
     {
       cookies: {
         getAll() {
-          return (cookieStore as any).getAll?.() ?? [];
+          return cookieStore.getAll();
         },
-        // ❗ Server Component'te cookie set ETME
-        setAll() {
-          // no-op
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
         },
       },
     }
   );
 }
-
-export const createSupabaseServerClient = supabaseServer;
