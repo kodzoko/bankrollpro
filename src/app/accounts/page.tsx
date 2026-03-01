@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+
 import AddAccountForm from "./AddAccountForm";
 import AccountsList from "./AccountsList";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -24,8 +26,10 @@ export default async function AccountsPage() {
   const supabase = await supabaseServer();
   const { data: auth } = await supabase.auth.getUser();
 
-  // redirect("/login") istersen burada açabilirsin
-  const userId = auth.user?.id ?? "";
+  const userId = auth.user?.id;
+  if (!userId) {
+    redirect("/login");
+  }
 
   const { data: accountsRaw, error } = await supabaseAdmin
     .from("bookmaker_accounts")

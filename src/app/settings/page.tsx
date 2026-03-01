@@ -1,27 +1,29 @@
-import { supabaseServer } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
+
 import SettingsForm from "./SettingsForm";
+import { supabaseServer } from "@/lib/supabase/server";
 
 export default async function SettingsPage() {
   const supabase = await supabaseServer();
+  const { data: auth } = await supabase.auth.getUser();
 
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) return null;
-
-  const userId = session.user.id;
-
-  const { data: settings } = await supabase
-    .from("user_settings")
-    .select("*")
-    .eq("user_id", userId)
-    .single();
+  const userId = auth.user?.id;
+  if (!userId) {
+    redirect("/login");
+  }
 
   return (
-    <div className="space-y-8">
-      <h1 className="text-3xl font-bold">Kelly Settings</h1>
-      <SettingsForm initialSettings={settings} />
-    </div>
+    <main className="p-6">
+      <div className="mx-auto w-full max-w-3xl">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold">Settings</h1>
+          <div className="mt-1 text-sm text-slate-600">Manage your preferences.</div>
+        </div>
+
+        <div className="rounded-2xl border bg-white p-5 shadow-sm">
+          <SettingsForm />
+        </div>
+      </div>
+    </main>
   );
 }

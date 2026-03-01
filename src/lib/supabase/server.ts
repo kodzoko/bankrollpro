@@ -1,5 +1,5 @@
-import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 
 export async function supabaseServer() {
   const cookieStore = await cookies();
@@ -12,8 +12,17 @@ export async function supabaseServer() {
         getAll() {
           return cookieStore.getAll();
         },
-        // Server Components cannot set cookies; middleware handles refresh/write.
-        setAll() {},
+        setAll(cookiesToSet) {
+          // Server Component’te cookie set etmek yasak -> try/catch ile sessiz geçiyoruz.
+          // Cookie refresh işini middleware.ts hallediyor.
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // ignore
+          }
+        },
       },
     }
   );

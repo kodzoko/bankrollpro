@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(req: NextRequest) {
-  let res = NextResponse.next({ request: { headers: req.headers } });
+  let res = NextResponse.next({
+    request: { headers: req.headers },
+  });
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,16 +15,16 @@ export async function middleware(req: NextRequest) {
           return req.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          // write cookies to BOTH request and response
-          cookiesToSet.forEach(({ name, value }) => req.cookies.set(name, value));
-          res = NextResponse.next({ request: { headers: req.headers } });
-          cookiesToSet.forEach(({ name, value, options }) => res.cookies.set(name, value, options));
+          // middleware'de cookie set etmek serbest
+          cookiesToSet.forEach(({ name, value, options }) => {
+            res.cookies.set(name, value, options);
+          });
         },
       },
     }
   );
 
-  // IMPORTANT: this triggers refresh if needed and sets cookies via setAll above
+  // Bu çağrı session'ı refresh eder ve gerekirse cookie günceller
   await supabase.auth.getUser();
 
   return res;
@@ -30,7 +32,10 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Skip Next internal + static files
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    /*
+      - static dosyaları ve next internal route'ları dışarıda bırakıyoruz
+      - api route'lar dahil kalabilir (genelde sorun olmaz)
+    */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
