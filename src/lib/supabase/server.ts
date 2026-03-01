@@ -12,13 +12,8 @@ export async function supabaseServer() {
         getAll() {
           return cookieStore.getAll();
         },
-
-        // IMPORTANT:
-        // In Next.js Server Components, cookies cannot be modified.
-        // Session refresh cookie writes are handled in middleware.ts.
-        setAll() {
-          // no-op on purpose
-        },
+        // Server Components cannot set cookies; middleware handles refresh/write.
+        setAll() {},
       },
     }
   );

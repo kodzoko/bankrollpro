@@ -2,7 +2,7 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 import { NextResponse } from "next/server";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseServer } from "@/lib/supabase/server";
 
 type Range = "all" | "7d" | "30d";
 type StatusFilter = "all" | "won" | "lost";
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
   const from = parseYmd(url.searchParams.get("from"));
   const to = parseYmd(url.searchParams.get("to"));
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = await supabaseServer();
   const {
     data: { user },
   } = await supabase.auth.getUser();

@@ -1,8 +1,8 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseServer } from "@/lib/supabase/server";
 import SettingsForm from "./SettingsForm";
 
 export default async function SettingsPage() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await supabaseServer();
 
   const {
     data: { session },

@@ -1,9 +1,9 @@
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { supabaseServer } from "@/lib/supabase/server";
 import AddBetForm from "./AddBetForm";
 import EditBetForm from "./EditBetForm";
 
 export default async function BetsPage() {
-  const supabase = await createSupabaseServerClient();
+  const supabase = await supabaseServer();
 
   const {
     data: { session },
