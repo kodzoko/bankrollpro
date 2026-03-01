@@ -78,7 +78,7 @@ export default async function BetsPage() {
                     <td className="border-b py-3 pr-3">{safeNumber(r.odds)}</td>
                     <td className="border-b py-3 pr-3">{r.selection ?? "—"}</td>
                     <td className="border-b py-3 pr-3">
-                      <EditBetForm initial={r} />
+                      <EditBetForm bet={r} />
                     </td>
                   </tr>
                 ))}
