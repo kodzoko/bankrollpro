@@ -21,16 +21,15 @@ function rangeDays(range: TimeRangeKey) {
 }
 
 function rangeLabel(range: TimeRangeKey) {
-  if (range === "7") return "7d";
-  if (range === "30") return "30d";
+  if (range === "7") return "7D";
+  if (range === "30") return "30D";
   return "All";
 }
 
-function rangeBtnClass(isActive: boolean) {
-  return [
-    "rounded-xl border px-3 py-2 text-sm",
-    isActive ? "bg-black text-white border-black" : "bg-white hover:bg-slate-50",
-  ].join(" ");
+function rangeBtnClass(active: boolean) {
+  return active
+    ? "rounded-xl bg-black px-3 py-2 text-sm text-white"
+    : "rounded-xl border px-3 py-2 text-sm hover:bg-slate-50";
 }
 
 export default async function DashboardRangePage({
@@ -93,7 +92,7 @@ export default async function DashboardRangePage({
   const currency = settings.currency || "GBP";
   const startingBankroll = Number(settings.starting_bankroll) || 0;
 
-  // 2) Load bets for range (query placed_at for list/risk; equity uses settled_at filtering below)
+  // 2) Load bets for range (by placed_at for risk/exposure metrics)
   const days = rangeDays(range);
   const since = days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString() : null;
 
@@ -122,10 +121,10 @@ export default async function DashboardRangePage({
 
   const bets = (betsRaw ?? []) as (BetRow & { settled_at?: string | null })[];
 
-  // existing risk metrics
+  // Risk / exposure metrics
   const m = computeRiskMetrics({ startingBankroll, bets });
 
-  // 3) Build equity curve + drawdown (settled bets only, range applies to settled_at)
+  // 3) Equity curve + drawdown (settled bets only, range applies to settled_at)
   const settledBets = (bets ?? [])
     .filter((b) => b.status === "won" || b.status === "lost" || b.status === "void")
     .filter((b) => !!b.settled_at)
@@ -154,31 +153,31 @@ export default async function DashboardRangePage({
   return (
     <main className="p-6">
       <div className="mx-auto w-full max-w-6xl">
-        {/* Header + range switcher */}
         <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Dashboard</h1>
-            <div className="mt-1 text-sm text-slate-600">
-              Range: <span className="font-medium">{rangeLabel(range)}</span>
+
+            <div className="mt-2 flex items-center gap-2">
+              <div className="text-sm text-slate-600">
+                Range: <span className="font-medium">{rangeLabel(range)}</span>
+              </div>
+
+              <div className="ml-3 flex gap-2">
+                <Link href="/dashboard/all" className={rangeBtnClass(range === "all")}>
+                  All
+                </Link>
+                <Link href="/dashboard/30" className={rangeBtnClass(range === "30")}>
+                  30D
+                </Link>
+                <Link href="/dashboard/7" className={rangeBtnClass(range === "7")}>
+                  7D
+                </Link>
+              </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex gap-2">
-              <Link href="/dashboard/all" className={rangeBtnClass(range === "all")}>
-                All
-              </Link>
-              <Link href="/dashboard/7" className={rangeBtnClass(range === "7")}>
-                7d
-              </Link>
-              <Link href="/dashboard/30" className={rangeBtnClass(range === "30")}>
-                30d
-              </Link>
-            </div>
-
-            <div className={`rounded-xl border px-3 py-2 text-sm ${badge}`}>
-              Risk: <span className="font-semibold">{m.riskLevel}</span>
-            </div>
+          <div className={`w-fit rounded-xl border px-3 py-2 text-sm ${badge}`}>
+            Risk: <span className="font-semibold">{m.riskLevel}</span>
           </div>
         </div>
 
