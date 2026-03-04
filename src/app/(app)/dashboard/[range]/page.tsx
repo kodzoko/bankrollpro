@@ -17,7 +17,7 @@ function formatPct(x: number) {
 function rangeDays(range: TimeRangeKey) {
   if (range === "7") return 7;
   if (range === "30") return 30;
-  return null; // "all"
+  return null;
 }
 
 function rangeLabel(range: TimeRangeKey) {
@@ -26,10 +26,14 @@ function rangeLabel(range: TimeRangeKey) {
   return "All";
 }
 
+function rangeHref(r: TimeRangeKey) {
+  return `/dashboard/${r}`;
+}
+
 function rangeBtnClass(active: boolean) {
   return active
-    ? "rounded-xl bg-black px-3 py-2 text-sm text-white"
-    : "rounded-xl border px-3 py-2 text-sm hover:bg-slate-50";
+    ? "rounded-xl bg-black px-4 py-2 text-sm text-white"
+    : "rounded-xl border px-4 py-2 text-sm hover:bg-slate-50";
 }
 
 export default async function DashboardRangePage({
@@ -66,7 +70,6 @@ export default async function DashboardRangePage({
     );
   }
 
-  // If missing -> show CTA to settings page
   if (!settings?.starting_bankroll) {
     return (
       <main className="p-6">
@@ -92,7 +95,7 @@ export default async function DashboardRangePage({
   const currency = settings.currency || "GBP";
   const startingBankroll = Number(settings.starting_bankroll) || 0;
 
-  // 2) Load bets for range (by placed_at for risk/exposure metrics)
+  // 2) Load bets for range (placed_at filter for main metrics)
   const days = rangeDays(range);
   const since = days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString() : null;
 
@@ -121,10 +124,10 @@ export default async function DashboardRangePage({
 
   const bets = (betsRaw ?? []) as (BetRow & { settled_at?: string | null })[];
 
-  // Risk / exposure metrics
+  // Risk + headline metrics
   const m = computeRiskMetrics({ startingBankroll, bets });
 
-  // 3) Equity curve + drawdown (settled bets only, range applies to settled_at)
+  // 3) Equity curve uses settlement date (settled_at)
   const settledBets = (bets ?? [])
     .filter((b) => b.status === "won" || b.status === "lost" || b.status === "void")
     .filter((b) => !!b.settled_at)
@@ -153,35 +156,39 @@ export default async function DashboardRangePage({
   return (
     <main className="p-6">
       <div className="mx-auto w-full max-w-6xl">
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        {/* HEADER ROW: left title + right controls */}
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          {/* LEFT */}
           <div>
             <h1 className="text-3xl font-bold">Dashboard</h1>
-
-            <div className="mt-2 flex items-center gap-2">
-              <div className="text-sm text-slate-600">
-                Range: <span className="font-medium">{rangeLabel(range)}</span>
-              </div>
-
-              <div className="ml-3 flex gap-2">
-                <Link href="/dashboard/all" className={rangeBtnClass(range === "all")}>
-                  All
-                </Link>
-                <Link href="/dashboard/30" className={rangeBtnClass(range === "30")}>
-                  30D
-                </Link>
-                <Link href="/dashboard/7" className={rangeBtnClass(range === "7")}>
-                  7D
-                </Link>
-              </div>
+            <div className="mt-1 text-sm text-slate-600">
+              Range: <span className="font-medium">{rangeLabel(range)}</span>
             </div>
           </div>
 
-          <div className={`w-fit rounded-xl border px-3 py-2 text-sm ${badge}`}>
-            Risk: <span className="font-semibold">{m.riskLevel}</span>
+          {/* RIGHT */}
+          <div className="flex items-center gap-3">
+            {/* Range selector */}
+            <div className="flex items-center gap-2">
+              <Link href={rangeHref("all")} className={rangeBtnClass(range === "all")}>
+                All
+              </Link>
+              <Link href={rangeHref("30")} className={rangeBtnClass(range === "30")}>
+                30D
+              </Link>
+              <Link href={rangeHref("7")} className={rangeBtnClass(range === "7")}>
+                7D
+              </Link>
+            </div>
+
+            {/* Risk badge */}
+            <div className={`rounded-xl border px-3 py-2 text-sm ${badge}`}>
+              Risk: <span className="font-semibold">{m.riskLevel}</span>
+            </div>
           </div>
         </div>
 
-        {/* Top metrics */}
+        {/* Top cards */}
         <div className="grid gap-4 md:grid-cols-4">
           <div className="rounded-2xl border bg-white p-4">
             <div className="text-xs uppercase tracking-wide text-slate-500">Bankroll now</div>
