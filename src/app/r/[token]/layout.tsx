@@ -1,6 +1,5 @@
 // src/app/layout.tsx
 import type { ReactNode } from "react";
-import "./globals.css"; // ✅ Tailwind + global styles burada yüklenir
 
 export const metadata = {
   title: "BankrollPro",

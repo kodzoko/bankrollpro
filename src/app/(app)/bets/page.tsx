@@ -1,13 +1,13 @@
+// src/app/bets/page.tsx
 import { redirect } from "next/navigation";
-
 import { supabaseServer } from "@/lib/supabase/server";
 import AddBetForm from "./AddBetForm";
-import EditBetForm from "./EditBetForm";
+import { settleBet } from "@/app/actions/bets";
 
 type BetRow = {
   id: string;
   placed_at: string;
-  status: string;
+  status: "pending" | "won" | "lost" | "void";
   stake: number | null;
   profit_loss: number | null;
   odds: number | null;
@@ -15,6 +15,7 @@ type BetRow = {
   event_name?: string | null;
   market?: string | null;
   sport?: string | null;
+  created_at?: string | null;
 };
 
 function safeNumber(x: any) {
@@ -35,12 +36,19 @@ export default async function BetsPage() {
 
   const { data: rowsRaw, error } = await supabase
     .from("bets")
-    .select("id, placed_at, status, stake, profit_loss, odds, selection, event_name, market, sport")
+    .select("id, placed_at, status, stake, profit_loss, odds, selection, event_name, market, sport, created_at")
     .eq("user_id", userId)
     .order("placed_at", { ascending: false })
     .limit(200);
 
-  const rows = (rowsRaw ?? []) as BetRow[];
+  const rows = ((rowsRaw ?? []) as BetRow[]).sort((a, b) => {
+    const ap = a.status === "pending" ? 0 : 1;
+    const bp = b.status === "pending" ? 0 : 1;
+    if (ap !== bp) return ap - bp;
+    const at = new Date(a.placed_at).getTime();
+    const bt = new Date(b.placed_at).getTime();
+    return bt - at;
+  });
 
   return (
     <main className="p-6">
@@ -83,9 +91,10 @@ export default async function BetsPage() {
                     <th className="border-b py-2 pr-3">P/L</th>
                     <th className="border-b py-2 pr-3">Odds</th>
                     <th className="border-b py-2 pr-3">Selection</th>
-                    <th className="border-b py-2 pr-3">Edit</th>
+                    <th className="border-b py-2 pr-3">Settle</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id} className="text-sm">
@@ -95,12 +104,47 @@ export default async function BetsPage() {
                       <td className="border-b py-3 pr-3">{formatGBP(safeNumber(r.profit_loss))}</td>
                       <td className="border-b py-3 pr-3">{safeNumber(r.odds)}</td>
                       <td className="border-b py-3 pr-3">{r.selection ?? "—"}</td>
+
                       <td className="border-b py-3 pr-3">
-                        <EditBetForm bet={r as any} />
+                        {r.status === "pending" ? (
+                          <form action={settleBet} className="flex items-center gap-2">
+                            <input type="hidden" name="bet_id" value={r.id} />
+
+                            <button
+                              type="submit"
+                              name="status"
+                              value="won"
+                              className="px-3 py-1 rounded-xl border hover:bg-gray-100"
+                            >
+                              Won
+                            </button>
+
+                            <button
+                              type="submit"
+                              name="status"
+                              value="lost"
+                              className="px-3 py-1 rounded-xl border hover:bg-gray-100"
+                            >
+                              Lost
+                            </button>
+
+                            <button
+                              type="submit"
+                              name="status"
+                              value="void"
+                              className="px-3 py-1 rounded-xl border hover:bg-gray-100"
+                            >
+                              Void
+                            </button>
+                          </form>
+                        ) : (
+                          <div className="text-sm text-slate-500">Settled</div>
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
+
               </table>
             </div>
           )}

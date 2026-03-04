@@ -2,26 +2,22 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-
-  // Public paths (login/signup + public report view + api/report token endpoint)
   const { pathname } = req.nextUrl;
 
-  const isPublic =
+  // Public paths
+  if (
     pathname === "/" ||
-    pathname.startsWith("/login") ||
-    pathname.startsWith("/signup") ||
+    pathname === "/login" ||
+    pathname === "/signup" ||
     pathname.startsWith("/report/") ||
-    pathname.startsWith("/api/report/") ||
+    pathname.startsWith("/api/") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon") ||
-    pathname.startsWith("/public");
+    pathname.startsWith("/favicon")
+  ) {
+    return NextResponse.next();
+  }
 
-  // IMPORTANT: API routes genelde middleware’den muaf kalsın (opsiyonel)
-  if (pathname.startsWith("/api/")) return res;
-
-  // Eğer public ise hiç uğraşma
-  if (isPublic) return res;
+  let response = NextResponse.next();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -33,34 +29,27 @@ export async function middleware(req: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value, options }) => {
-            res.cookies.set(name, value, options);
+            response.cookies.set(name, value, options);
           });
         },
       },
     }
   );
 
-  const { data } = await supabase.auth.getUser();
-  const user = data?.user;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Korunan sayfalar
-  const protectedPrefixes = ["/dashboard", "/accounts", "/bets", "/settings"];
-
-  const isProtected = protectedPrefixes.some((p) => pathname.startsWith(p));
-
-  if (isProtected && !user) {
+  if (!user) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
-  return res;
+  return response;
 }
 
 export const config = {
-  matcher: [
-    // app router sayfaları
-    "/((?!_next/static|_next/image|favicon.ico).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

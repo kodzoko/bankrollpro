@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { calculateKelly } from "@/lib/kelly/calculateKelly";
+import { addBet } from "@/app/actions/bets";
 
 type UserSettings = {
   fractional_kelly: number;
@@ -11,9 +10,6 @@ type UserSettings = {
 };
 
 export default function AddBetForm() {
-  const supabase = createSupabaseBrowserClient();
-  const router = useRouter();
-
   const [accounts, setAccounts] = useState<any[]>([]);
   const [accountId, setAccountId] = useState("");
   const [bankroll, setBankroll] = useState(0);
@@ -23,13 +19,17 @@ export default function AddBetForm() {
   const [eventName, setEventName] = useState("");
   const [selection, setSelection] = useState("");
   const [odds, setOdds] = useState("");
-  const [probability, setProbability] = useState(""); // %
+  const [probability, setProbability] = useState(""); // % (MVP: only for Kelly hint)
   const [stake, setStake] = useState("");
-  const [status, setStatus] = useState("pending");
 
-  // Load accounts + settings once
+  // Load accounts + settings (client read is fine)
   useEffect(() => {
+    let mounted = true;
+
     async function loadData() {
+      const { createSupabaseBrowserClient } = await import("@/lib/supabase/browser");
+      const supabase = createSupabaseBrowserClient();
+
       const { data: accs } = await supabase
         .from("bookmaker_accounts")
         .select("*")
@@ -40,6 +40,8 @@ export default function AddBetForm() {
         .from("user_settings")
         .select("fractional_kelly,max_stake_percent")
         .single();
+
+      if (!mounted) return;
 
       setAccounts(accs || []);
       setSettings(
@@ -58,6 +60,9 @@ export default function AddBetForm() {
     }
 
     loadData();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   // When account changes, update bankroll from selected account
@@ -86,82 +91,20 @@ export default function AddBetForm() {
     );
   }, [settings, odds, probability, bankroll]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-
-    const parsedOdds = Number(odds);
-    const parsedStake = Number(stake);
-
-    if (!accountId || !eventName.trim() || !selection.trim()) return;
-    if (!Number.isFinite(parsedOdds) || parsedOdds <= 1) return;
-    if (!Number.isFinite(parsedStake) || parsedStake <= 0) return;
-
-    let profitLoss = 0;
-    let settledAt: string | null = null;
-
-    if (status === "won") {
-      profitLoss = parsedStake * (parsedOdds - 1);
-      settledAt = new Date().toISOString();
-    } else if (status === "lost") {
-      profitLoss = -parsedStake;
-      settledAt = new Date().toISOString();
-    }
-
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData?.user) return;
-
-    const { error } = await supabase.from("bets").insert({
-      user_id: userData.user.id,
-      bookmaker_account_id: accountId,
-      placed_at: new Date().toISOString(),
-      sport: "Football",
-      event_name: eventName.trim(),
-      market: "Match Odds",
-      selection: selection.trim(),
-      odds: parsedOdds,
-      stake: parsedStake,
-      status,
-      profit_loss: profitLoss,
-      settled_at: settledAt,
-    });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    // Only adjust balance if bet is already settled
-    if (settledAt) {
-      const { data: account } = await supabase
-        .from("bookmaker_accounts")
-        .select("current_balance")
-        .eq("id", accountId)
-        .single();
-
-      if (account) {
-        await supabase
-          .from("bookmaker_accounts")
-          .update({
-            current_balance: Number(account.current_balance) + profitLoss,
-          })
-          .eq("id", accountId);
-      }
-    }
-
-    router.refresh();
-  }
-
   const showKelly = !!kelly;
   const positiveEdge = kelly ? kelly.edge > 0 && kelly.fraction > 0 : false;
 
   return (
-    <form onSubmit={handleSubmit} className="border rounded p-4 space-y-3">
+    <form action={addBet} className="border rounded p-4 space-y-3">
       <h2 className="text-lg font-semibold">Add Bet</h2>
 
+      {/* Bookmaker account */}
       <select
+        name="bookmaker_account_id"
         value={accountId}
         onChange={(e) => setAccountId(e.target.value)}
         className="border rounded px-3 py-2 w-full bg-white"
+        required
       >
         {accounts.map((acc) => (
           <option key={acc.id} value={acc.id}>
@@ -170,44 +113,52 @@ export default function AddBetForm() {
         ))}
       </select>
 
+      {/* Optional meta (kept minimal) */}
       <input
+        name="event_name"
         placeholder="Event name"
         value={eventName}
         onChange={(e) => setEventName(e.target.value)}
         className="border rounded px-3 py-2 w-full"
+        required
       />
 
       <input
+        name="selection"
         placeholder="Selection"
         value={selection}
         onChange={(e) => setSelection(e.target.value)}
         className="border rounded px-3 py-2 w-full"
+        required
       />
 
       <input
+        name="odds"
         placeholder="Odds (decimal)"
         value={odds}
         onChange={(e) => setOdds(e.target.value)}
         className="border rounded px-3 py-2 w-full"
+        inputMode="decimal"
+        required
       />
 
       <input
-        placeholder="Win Probability (%)"
+        name="win_probability"
+        placeholder="Win Probability (%) (optional)"
         value={probability}
         onChange={(e) => setProbability(e.target.value)}
         className="border rounded px-3 py-2 w-full"
+        inputMode="decimal"
       />
 
       {showKelly && (
         <div className="bg-gray-50 border rounded p-3 text-sm space-y-1">
           <div className="flex flex-wrap gap-x-6 gap-y-1">
             <span>
-              <strong>Edge (EV):</strong>{" "}
-              {(kelly!.edge * 100).toFixed(2)}%
+              <strong>Edge (EV):</strong> {(kelly!.edge * 100).toFixed(2)}%
             </span>
             <span>
-              <strong>Kelly (raw):</strong>{" "}
-              {(kelly!.rawKelly * 100).toFixed(2)}%
+              <strong>Kelly (raw):</strong> {(kelly!.rawKelly * 100).toFixed(2)}%
             </span>
             <span>
               <strong>Kelly (fractional):</strong>{" "}
@@ -221,8 +172,7 @@ export default function AddBetForm() {
             </div>
           ) : (
             <div>
-              <strong>Recommended Stake:</strong>{" "}
-              £{kelly!.recommendedStake.toFixed(2)}
+              <strong>Recommended Stake:</strong> £{kelly!.recommendedStake.toFixed(2)}
               {kelly!.capped && (
                 <span className="text-gray-600">
                   {" "}
@@ -242,26 +192,24 @@ export default function AddBetForm() {
       )}
 
       <input
+        name="stake"
         placeholder="Stake"
         value={stake}
         onChange={(e) => setStake(e.target.value)}
         className="border rounded px-3 py-2 w-full"
+        inputMode="decimal"
+        required
       />
 
-      <select
-        value={status}
-        onChange={(e) => setStatus(e.target.value)}
-        className="border rounded px-3 py-2 w-full bg-white"
-      >
-        <option value="pending">pending</option>
-        <option value="won">won</option>
-        <option value="lost">lost</option>
-        <option value="void">void</option>
-      </select>
+      {/* Status REMOVED: always pending */}
 
-      <button className="bg-black text-white px-4 py-2 rounded">
+      <button type="submit" className="bg-black text-white px-4 py-2 rounded">
         Add Bet
       </button>
+
+      <div className="text-xs text-slate-500">
+        New bets are saved as <strong>pending</strong>. Settle them below (Won/Lost/Void).
+      </div>
     </form>
   );
 }
