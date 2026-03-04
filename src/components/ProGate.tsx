@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { isProFromRequestCookies } from "@/lib/proCookie";
+import { isProFromCookies } from "@/lib/proCookie";
 
 export default async function ProGate({
   children,
@@ -10,7 +10,7 @@ export default async function ProGate({
   title?: string;
   description?: string;
 }) {
-  const isPro = await isProFromRequestCookies();
+  const isPro = isProFromCookies();
 
   if (isPro) return <>{children}</>;
 
