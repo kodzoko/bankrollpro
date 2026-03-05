@@ -44,6 +44,7 @@ export default async function DashboardRangePage({
   const { range } = await params;
 
   const supabase = await supabaseServer();
+
   const {
     data: { user },
     error: userError,
@@ -51,7 +52,7 @@ export default async function DashboardRangePage({
 
   if (userError || !user) redirect("/login");
 
-  // 1) Load starting bankroll settings
+  // SETTINGS
   const { data: settings, error: settingsError } = await supabase
     .from("bankroll_settings")
     .select("starting_bankroll,currency")
@@ -76,6 +77,7 @@ export default async function DashboardRangePage({
         <div className="mx-auto w-full max-w-6xl">
           <div className="rounded-2xl border bg-white p-6">
             <h1 className="text-3xl font-bold">Set your starting bankroll</h1>
+
             <p className="mt-2 text-sm text-slate-600">
               BankrollPro uses this baseline for risk, exposure, and drawdown.
             </p>
@@ -95,9 +97,12 @@ export default async function DashboardRangePage({
   const currency = settings.currency || "GBP";
   const startingBankroll = Number(settings.starting_bankroll) || 0;
 
-  // 2) Load bets for range (placed_at filter for main metrics)
+  // RANGE FILTER
   const days = rangeDays(range);
-  const since = days ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString() : null;
+
+  const since = days
+    ? new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
+    : null;
 
   let q = supabase
     .from("bets")
@@ -124,10 +129,48 @@ export default async function DashboardRangePage({
 
   const bets = (betsRaw ?? []) as (BetRow & { settled_at?: string | null })[];
 
-  // Risk + headline metrics
+  // RISK ENGINE
   const m = computeRiskMetrics({ startingBankroll, bets });
 
-  // 3) Equity curve uses settlement date (settled_at)
+  // -----------------------------
+  // NEW: STATS CALCULATION
+  // -----------------------------
+
+  const settled = bets.filter(
+    (b) => b.status === "won" || b.status === "lost"
+  );
+
+  const won = settled.filter((b) => b.status === "won").length;
+
+  const lost = settled.filter((b) => b.status === "lost").length;
+
+  const totalStakes = settled.reduce(
+    (sum, b) => sum + Number(b.stake || 0),
+    0
+  );
+
+  const totalProfit = settled.reduce((sum, b) => {
+    if (b.status === "won") {
+      return sum + (Number(b.odds) - 1) * Number(b.stake);
+    }
+
+    if (b.status === "lost") {
+      return sum - Number(b.stake);
+    }
+
+    return sum;
+  }, 0);
+
+  const roi =
+    totalStakes > 0 ? (totalProfit / totalStakes) * 100 : 0;
+
+  const winRate =
+    settled.length > 0 ? (won / settled.length) * 100 : 0;
+
+  // -----------------------------
+  // EQUITY CURVE
+  // -----------------------------
+
   const settledBets = (bets ?? [])
     .filter((b) => b.status === "won" || b.status === "lost" || b.status === "void")
     .filter((b) => !!b.settled_at)
@@ -139,7 +182,11 @@ export default async function DashboardRangePage({
       if (!since) return true;
       return new Date(b.settled_at).getTime() >= new Date(since).getTime();
     })
-    .sort((a, b) => new Date(a.settled_at).getTime() - new Date(b.settled_at).getTime());
+    .sort(
+      (a, b) =>
+        new Date(a.settled_at).getTime() -
+        new Date(b.settled_at).getTime()
+    );
 
   const { points: equityPoints, stats: dd } = buildEquityCurve({
     startingBankroll,
@@ -156,9 +203,10 @@ export default async function DashboardRangePage({
   return (
     <main className="p-6">
       <div className="mx-auto w-full max-w-6xl">
-        {/* HEADER ROW: left title + right controls */}
+
+        {/* HEADER */}
+
         <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          {/* LEFT */}
           <div>
             <h1 className="text-3xl font-bold">Dashboard</h1>
             <div className="mt-1 text-sm text-slate-600">
@@ -166,34 +214,29 @@ export default async function DashboardRangePage({
             </div>
           </div>
 
-          {/* RIGHT */}
           <div className="flex items-center gap-3">
-            {/* Range selector */}
             <div className="flex items-center gap-2">
-              <Link href={rangeHref("all")} className={rangeBtnClass(range === "all")}>
-                All
-              </Link>
-              <Link href={rangeHref("30")} className={rangeBtnClass(range === "30")}>
-                30D
-              </Link>
-              <Link href={rangeHref("7")} className={rangeBtnClass(range === "7")}>
-                7D
-              </Link>
+              <Link href={rangeHref("all")} className={rangeBtnClass(range === "all")}>All</Link>
+              <Link href={rangeHref("30")} className={rangeBtnClass(range === "30")}>30D</Link>
+              <Link href={rangeHref("7")} className={rangeBtnClass(range === "7")}>7D</Link>
             </div>
 
-            {/* Risk badge */}
             <div className={`rounded-xl border px-3 py-2 text-sm ${badge}`}>
               Risk: <span className="font-semibold">{m.riskLevel}</span>
             </div>
           </div>
         </div>
 
-        {/* Top cards */}
+        {/* TOP CARDS */}
+
         <div className="grid gap-4 md:grid-cols-4">
+
           <div className="rounded-2xl border bg-white p-4">
             <div className="text-xs uppercase tracking-wide text-slate-500">Bankroll now</div>
             <div className="mt-2 text-2xl font-bold">{formatMoney(currency, m.bankrollNow)}</div>
-            <div className="mt-1 text-sm text-slate-600">Start: {formatMoney(currency, m.startingBankroll)}</div>
+            <div className="mt-1 text-sm text-slate-600">
+              Start: {formatMoney(currency, m.startingBankroll)}
+            </div>
           </div>
 
           <div className="rounded-2xl border bg-white p-4">
@@ -213,63 +256,89 @@ export default async function DashboardRangePage({
             <div className="mt-2 text-2xl font-bold">{formatPct(m.exposurePct)}</div>
             <div className="mt-1 text-sm text-slate-600">Exposure / bankroll now</div>
           </div>
+
         </div>
 
-        {/* Drawdown cards */}
+        {/* DRAW DOWN */}
+
         <div className="mt-6 grid gap-4 md:grid-cols-3">
+
           <div className="rounded-2xl border bg-white p-4">
             <div className="text-xs uppercase tracking-wide text-slate-500">Peak bankroll</div>
-            <div className="mt-2 text-2xl font-bold">{formatMoney(currency, dd.peakBankroll)}</div>
+            <div className="mt-2 text-2xl font-bold">
+              {formatMoney(currency, dd.peakBankroll)}
+            </div>
           </div>
 
           <div className="rounded-2xl border bg-white p-4">
             <div className="text-xs uppercase tracking-wide text-slate-500">Max drawdown</div>
-            <div className="mt-2 text-2xl font-bold">{formatPct(dd.maxDrawdownPct)}</div>
+            <div className="mt-2 text-2xl font-bold">
+              {formatPct(dd.maxDrawdownPct)}
+            </div>
             <div className="mt-1 text-sm text-slate-600">From peak to trough</div>
           </div>
 
           <div className="rounded-2xl border bg-white p-4">
             <div className="text-xs uppercase tracking-wide text-slate-500">Current drawdown</div>
-            <div className="mt-2 text-2xl font-bold">{formatPct(dd.currentDrawdownPct)}</div>
+            <div className="mt-2 text-2xl font-bold">
+              {formatPct(dd.currentDrawdownPct)}
+            </div>
             <div className="mt-1 text-sm text-slate-600">Peak to now</div>
           </div>
+
         </div>
 
-        {/* Equity curve */}
+        {/* NEW STATS */}
+
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+
+          <div className="rounded-2xl border bg-white p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">ROI</div>
+            <div className="mt-2 text-2xl font-bold">
+              {roi.toFixed(2)}%
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-white p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Win Rate</div>
+            <div className="mt-2 text-2xl font-bold">
+              {winRate.toFixed(1)}%
+            </div>
+          </div>
+
+          <div className="rounded-2xl border bg-white p-4">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Total Stakes</div>
+            <div className="mt-2 text-2xl font-bold">
+              {formatMoney(currency, totalStakes)}
+            </div>
+          </div>
+
+        </div>
+
+        {/* EQUITY */}
+
         <div className="mt-6 rounded-2xl border bg-white p-5">
+
           <div className="mb-3 flex items-center justify-between">
+
             <div>
               <div className="text-lg font-semibold">Equity curve</div>
+
               <div className="mt-1 text-sm text-slate-600">
                 Based on settled bets (won/lost/void). Range applies to settlement date.
               </div>
             </div>
-            <div className="text-sm text-slate-600">{equityPoints.length} points</div>
+
+            <div className="text-sm text-slate-600">
+              {equityPoints.length} points
+            </div>
+
           </div>
 
           <EquityChart points={equityPoints} currency={currency} />
+
         </div>
 
-        {/* Next box */}
-        <div className="mt-6 rounded-2xl border bg-white p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-lg font-semibold">Next</div>
-              <div className="mt-1 text-sm text-slate-600">
-                We can add a “risk-of-ruin” estimate and streak analytics next.
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Link href="/bets" className="rounded-xl border px-4 py-2 text-sm hover:bg-slate-50">
-                Add/settle bets
-              </Link>
-              <Link href="/settings" className="rounded-xl bg-black px-4 py-2 text-sm text-white">
-                Update bankroll
-              </Link>
-            </div>
-          </div>
-        </div>
       </div>
     </main>
   );
