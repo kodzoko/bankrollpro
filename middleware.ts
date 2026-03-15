@@ -4,7 +4,6 @@ import { createServerClient } from "@supabase/ssr";
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Public paths
   if (
     pathname === "/" ||
     pathname === "/login" ||
@@ -37,10 +36,10 @@ export async function middleware(req: NextRequest) {
   );
 
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (!user) {
+  if (!session) {
     const url = req.nextUrl.clone();
     url.pathname = "/login";
     url.searchParams.set("next", pathname);
@@ -52,4 +51,4 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   matcher: ['/dashboard/:path*']
-}
+};
