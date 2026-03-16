@@ -2,6 +2,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { logout } from "@/app/actions/logout";
+import { supabaseServer } from "@/lib/supabase/server";
 
 function NavItem({ href, label }: { href: string; label: string }) {
   return (
@@ -14,7 +15,12 @@ function NavItem({ href, label }: { href: string; label: string }) {
   );
 }
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const supabase = await supabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto w-full max-w-7xl">
@@ -26,19 +32,42 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
             <nav className="mt-6 space-y-1">
               <NavItem href="/dashboard/all" label="Dashboard" />
-              <NavItem href="/accounts" label="Accounts" />
-              <NavItem href="/bets" label="Bets" />
-              <NavItem href="/settings" label="Settings" />
+              {user && (
+                <>
+                  <NavItem href="/accounts" label="Accounts" />
+                  <NavItem href="/bets" label="Bets" />
+                  <NavItem href="/settings" label="Settings" />
+                </>
+              )}
             </nav>
 
-            <form action={logout} className="mt-8">
-              <button
-                type="submit"
-                className="w-full rounded-xl border px-4 py-2 text-sm hover:bg-slate-50"
-              >
-                Logout
-              </button>
-            </form>
+            <div className="mt-8">
+              {user ? (
+                <form action={logout}>
+                  <button
+                    type="submit"
+                    className="w-full rounded-xl border px-4 py-2 text-sm hover:bg-slate-50"
+                  >
+                    Logout
+                  </button>
+                </form>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  <Link
+                    href="/login"
+                    className="block rounded-xl bg-black px-4 py-2 text-center text-sm text-white hover:bg-slate-800"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    href="/signup"
+                    className="block rounded-xl border px-4 py-2 text-center text-sm hover:bg-slate-50"
+                  >
+                    Register
+                  </Link>
+                </div>
+              )}
+            </div>
           </aside>
 
           {/* Main */}
@@ -48,14 +77,31 @@ export default function AppLayout({ children }: { children: ReactNode }) {
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="font-semibold">BankrollPro</div>
 
-                <form action={logout}>
-                  <button
-                    type="submit"
-                    className="rounded-xl border px-4 py-2 text-sm hover:bg-slate-50"
-                  >
-                    Logout
-                  </button>
-                </form>
+                {user ? (
+                  <form action={logout}>
+                    <button
+                      type="submit"
+                      className="rounded-xl border px-4 py-2 text-sm hover:bg-slate-50"
+                    >
+                      Logout
+                    </button>
+                  </form>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href="/login"
+                      className="rounded-xl border px-4 py-2 text-sm hover:bg-slate-50"
+                    >
+                      Login
+                    </Link>
+                    <Link
+                      href="/signup"
+                      className="rounded-xl bg-black px-4 py-2 text-sm text-white hover:bg-slate-800"
+                    >
+                      Register
+                    </Link>
+                  </div>
+                )}
               </div>
             </header>
 
