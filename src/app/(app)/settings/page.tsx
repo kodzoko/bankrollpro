@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 
+
 const CURRENCIES = ["GBP", "EUR", "USD", "NGN", "TRY"] as const;
 
 function absoluteUrl(path: string) {
@@ -28,7 +29,7 @@ export default async function SettingsPage() {
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) redirect("/login");
+  if (userError || !user) return null;
 
   async function saveSettings(formData: FormData) {
     "use server";
@@ -38,7 +39,7 @@ export default async function SettingsPage() {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
-    if (userError || !user) redirect("/login");
+    if (userError || !user) return;
 
     const fractional_kelly = Number(formData.get("fractional_kelly") ?? "");
     const max_stake_percent = Number(formData.get("max_stake_percent") ?? "");
@@ -84,7 +85,7 @@ export default async function SettingsPage() {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
-    if (userError || !user) redirect("/login");
+    if (userError || !user) return;
 
     // aktif link varsa onu koru (tek link yeter)
     const { data: existing } = await supabase
@@ -118,7 +119,7 @@ export default async function SettingsPage() {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser();
-    if (userError || !user) redirect("/login");
+    if (userError || !user) return;
 
     const { data: existing, error: selErr } = await supabase
       .from("share_links")

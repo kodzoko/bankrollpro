@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-
 import AddAccountForm from "./AddAccountForm";
 import AccountsList from "./AccountsList";
 import { supabaseServer } from "@/lib/supabase/server";
@@ -31,12 +29,8 @@ function formatMoney(amount: number, currency: string) {
 
 export default async function AccountsPage() {
   const supabase = await supabaseServer();
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-
-  // Hard guard: not logged in -> login
-  if (authError || !auth.user?.id) {
-    redirect("/login");
-  }
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user?.id) return null;
 
   const userId = auth.user.id;
 

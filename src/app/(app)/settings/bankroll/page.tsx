@@ -16,7 +16,7 @@ export default async function BankrollSettingsPage() {
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) redirect("/login");
+  if (userError || !user) return null;
 
   async function saveBankroll(formData: FormData) {
     "use server";
@@ -27,7 +27,7 @@ export default async function BankrollSettingsPage() {
       error: userError,
     } = await supabase.auth.getUser();
 
-    if (userError || !user) redirect("/login");
+    if (userError || !user) return;
 
     const starting_bankroll = toNumber(formData.get("starting_bankroll"));
     const currencyRaw = String(formData.get("currency") ?? "GBP");

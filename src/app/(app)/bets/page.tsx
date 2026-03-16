@@ -1,5 +1,4 @@
 // src/app/bets/page.tsx
-import { redirect } from "next/navigation";
 import { supabaseServer } from "@/lib/supabase/server";
 import AddBetForm from "./AddBetForm";
 import { settleBet } from "@/app/actions/bets";
@@ -29,8 +28,8 @@ function formatGBP(n: number) {
 
 export default async function BetsPage() {
   const supabase = await supabaseServer();
-  const { data: auth, error: authErr } = await supabase.auth.getUser();
-  if (authErr || !auth.user?.id) redirect("/login");
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user?.id) return null;
 
   const userId = auth.user.id;
 

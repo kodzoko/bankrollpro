@@ -1,8 +1,6 @@
 // src/app/(app)/layout.tsx
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { logout } from "@/app/actions/logout";
-import { supabaseServer } from "@/lib/supabase/server";
 
 function NavItem({ href, label }: { href: string; label: string }) {
   return (
@@ -15,12 +13,7 @@ function NavItem({ href, label }: { href: string; label: string }) {
   );
 }
 
-export default async function AppLayout({ children }: { children: ReactNode }) {
-  const supabase = await supabaseServer();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
+export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto w-full max-w-7xl">
@@ -32,42 +25,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
             <nav className="mt-6 space-y-1">
               <NavItem href="/dashboard/all" label="Dashboard" />
-              {user && (
-                <>
-                  <NavItem href="/accounts" label="Accounts" />
-                  <NavItem href="/bets" label="Bets" />
-                  <NavItem href="/settings" label="Settings" />
-                </>
-              )}
+              <NavItem href="/accounts" label="Accounts" />
+              <NavItem href="/bets" label="Bets" />
+              <NavItem href="/settings" label="Settings" />
             </nav>
-
-            <div className="mt-8">
-              {user ? (
-                <form action={logout}>
-                  <button
-                    type="submit"
-                    className="w-full rounded-xl border px-4 py-2 text-sm hover:bg-slate-50"
-                  >
-                    Logout
-                  </button>
-                </form>
-              ) : (
-                <div className="flex flex-col gap-2">
-                  <Link
-                    href="/login"
-                    className="block rounded-xl bg-black px-4 py-2 text-center text-sm text-white hover:bg-slate-800"
-                  >
-                    Login
-                  </Link>
-                  <Link
-                    href="/signup"
-                    className="block rounded-xl border px-4 py-2 text-center text-sm hover:bg-slate-50"
-                  >
-                    Register
-                  </Link>
-                </div>
-              )}
-            </div>
           </aside>
 
           {/* Main */}
@@ -76,32 +37,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <header className="sticky top-0 z-10 border-b bg-white/80 backdrop-blur">
               <div className="flex items-center justify-between px-6 py-4">
                 <div className="font-semibold">BankrollPro</div>
-
-                {user ? (
-                  <form action={logout}>
-                    <button
-                      type="submit"
-                      className="rounded-xl border px-4 py-2 text-sm hover:bg-slate-50"
-                    >
-                      Logout
-                    </button>
-                  </form>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href="/login"
-                      className="rounded-xl border px-4 py-2 text-sm hover:bg-slate-50"
-                    >
-                      Login
-                    </Link>
-                    <Link
-                      href="/signup"
-                      className="rounded-xl bg-black px-4 py-2 text-sm text-white hover:bg-slate-800"
-                    >
-                      Register
-                    </Link>
-                  </div>
-                )}
+                <nav className="flex items-center gap-1 md:hidden">
+                  <NavItem href="/dashboard/all" label="Dashboard" />
+                  <NavItem href="/bets" label="Bets" />
+                  <NavItem href="/accounts" label="Accounts" />
+                  <NavItem href="/settings" label="Settings" />
+                </nav>
               </div>
             </header>
 

@@ -49,51 +49,8 @@ export default async function DashboardRangePage({
     error: userError,
   } = await supabase.auth.getUser();
 
-  if (userError || !user) {
-    return (
-      <main className="p-6">
-        <div className="mx-auto w-full max-w-6xl">
-          <div className="rounded-2xl border bg-white p-10 text-center">
-            <h1 className="text-4xl font-bold">BankrollPro</h1>
-            <p className="mt-3 text-slate-600 text-lg">
-              Smart bankroll management for serious bettors.
-            </p>
-            <p className="mt-2 text-slate-500 text-sm">
-              Track your bets, monitor risk, and grow your bankroll with powerful analytics.
-            </p>
-            <div className="mt-8 flex items-center justify-center gap-4">
-              <Link
-                href="/login"
-                className="rounded-xl border px-6 py-3 text-sm font-medium hover:bg-slate-50"
-              >
-                Login
-              </Link>
-              <Link
-                href="/signup"
-                className="rounded-xl bg-black px-6 py-3 text-sm font-medium text-white hover:bg-slate-800"
-              >
-                Register
-              </Link>
-            </div>
-            <div className="mt-10 grid gap-4 md:grid-cols-3 text-left">
-              <div className="rounded-2xl border bg-slate-50 p-5">
-                <div className="text-sm font-semibold text-slate-700">Risk Management</div>
-                <p className="mt-1 text-xs text-slate-500">Monitor exposure, drawdown, and risk levels in real time.</p>
-              </div>
-              <div className="rounded-2xl border bg-slate-50 p-5">
-                <div className="text-sm font-semibold text-slate-700">Equity Curve</div>
-                <p className="mt-1 text-xs text-slate-500">Visualise your bankroll growth with detailed equity charts.</p>
-              </div>
-              <div className="rounded-2xl border bg-slate-50 p-5">
-                <div className="text-sm font-semibold text-slate-700">Performance Stats</div>
-                <p className="mt-1 text-xs text-slate-500">Track ROI, win rate, and total stakes across all timeframes.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-    );
-  }
+  // Middleware guarantees an anonymous session, but handle edge case gracefully
+  if (userError || !user) return null;
 
   // SETTINGS
   const { data: settings, error: settingsError } = await supabase
