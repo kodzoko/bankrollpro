@@ -10,7 +10,6 @@ export default function LoginClient() {
   const router = useRouter();
   const sp = useSearchParams();
 
-  // optional redirect: /login?next=/dashboard/all
   const nextUrl = sp.get("next") || "/dashboard/all";
 
   const [email, setEmail] = useState("");
@@ -22,14 +21,14 @@ export default function LoginClient() {
     e.preventDefault();
     setErr(null);
 
-    const e2 = email.trim();
-    if (!e2) return setErr("Email is required.");
+    const trimmed = email.trim();
+    if (!trimmed) return setErr("Email is required.");
     if (!password) return setErr("Password is required.");
 
     setSaving(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
-        email: e2,
+        email: trimmed,
         password,
       });
 
@@ -41,61 +40,86 @@ export default function LoginClient() {
       router.replace(nextUrl);
       router.refresh();
     } catch (e: any) {
-      setErr(e?.message || "Login failed.");
+      setErr(e?.message || "Sign in failed.");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <main className="p-6">
-      <div className="mx-auto w-full max-w-md rounded-2xl border bg-white p-6 shadow-sm">
-        <h1 className="text-2xl font-bold">Login</h1>
-        <div className="mt-1 text-sm text-slate-600">
-          Sign in to continue.
+    <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-sm">
+
+        <div className="mb-8 text-center">
+          <div className="text-2xl font-bold">BankrollPro</div>
+          <div className="mt-1 text-sm text-slate-500">Smart bankroll management</div>
         </div>
 
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
-          <div className="space-y-1">
-            <label className="text-sm">Email</label>
-            <input
-              className="w-full rounded-xl border px-3 py-2"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoComplete="email"
-              inputMode="email"
-              placeholder="you@example.com"
-            />
-          </div>
+        <div className="rounded-2xl border bg-white p-8 shadow-sm">
+          <h1 className="text-xl font-semibold text-slate-900">Welcome back</h1>
+          <p className="mt-1 text-sm text-slate-500">Sign in to your account to continue</p>
 
-          <div className="space-y-1">
-            <label className="text-sm">Password</label>
-            <input
-              className="w-full rounded-xl border px-3 py-2"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              autoComplete="current-password"
-              placeholder="••••••••"
-            />
-          </div>
+          <form onSubmit={onSubmit} className="mt-6 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Email
+              </label>
+              <input
+                type="email"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-black"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
+                placeholder="you@example.com"
+                required
+              />
+            </div>
 
-          {err ? <div className="text-sm text-red-600">{err}</div> : null}
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-slate-700">
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs text-slate-500 hover:text-black transition-colors"
+                >
+                  Forgot password?
+                </Link>
+              </div>
+              <input
+                type="password"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-black"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                placeholder="••••••••"
+                required
+              />
+            </div>
 
-          <button
-            disabled={saving}
-            className="w-full rounded-xl bg-black px-4 py-2 text-white disabled:opacity-60"
-          >
-            {saving ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
+            {err && (
+              <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-600">
+                {err}
+              </div>
+            )}
 
-        <div className="mt-4 text-sm text-slate-600">
-          Don’t have an account?{" "}
-          <Link className="font-semibold underline" href="/signup">
+            <button
+              disabled={saving}
+              className="w-full rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 transition-colors"
+            >
+              {saving ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+        </div>
+
+        <p className="mt-4 text-center text-sm text-slate-500">
+          Don&apos;t have an account?{" "}
+          <Link href="/signup" className="font-semibold text-black hover:underline">
             Sign up
           </Link>
-        </div>
+        </p>
+
       </div>
     </main>
   );

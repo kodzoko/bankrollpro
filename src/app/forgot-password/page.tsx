@@ -4,11 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 
-export default function SignupPage() {
+export default function ForgotPasswordPage() {
   const supabase = createSupabaseBrowserClient();
 
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -19,7 +18,9 @@ export default function SignupPage() {
     setMsg(null);
     setLoading(true);
 
-    const { error } = await supabase.auth.signUp({ email: email.trim(), password });
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/login`,
+    });
 
     setLoading(false);
 
@@ -28,7 +29,7 @@ export default function SignupPage() {
       return;
     }
 
-    setMsg("Check your email for a confirmation link, then sign in.");
+    setMsg("Check your email for a password reset link.");
   }
 
   return (
@@ -41,8 +42,10 @@ export default function SignupPage() {
         </div>
 
         <div className="rounded-2xl border bg-white p-8 shadow-sm">
-          <h1 className="text-xl font-semibold text-slate-900">Create an account</h1>
-          <p className="mt-1 text-sm text-slate-500">Start tracking your bankroll today</p>
+          <h1 className="text-xl font-semibold text-slate-900">Forgot password</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            Enter your email and we&apos;ll send you a reset link
+          </p>
 
           {msg ? (
             <div className="mt-6 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
@@ -65,21 +68,6 @@ export default function SignupPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-black"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-
               {err && (
                 <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-600">
                   {err}
@@ -90,14 +78,14 @@ export default function SignupPage() {
                 disabled={loading}
                 className="w-full rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 transition-colors"
               >
-                {loading ? "Creating account…" : "Create account"}
+                {loading ? "Sending…" : "Send reset link"}
               </button>
             </form>
           )}
         </div>
 
         <p className="mt-4 text-center text-sm text-slate-500">
-          Already have an account?{" "}
+          Remember your password?{" "}
           <Link href="/login" className="font-semibold text-black hover:underline">
             Sign in
           </Link>
