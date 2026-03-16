@@ -1,104 +1,108 @@
-"use client";
-
 import Link from "next/link";
-import { useState } from "react";
-import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
+import { redirect } from "next/navigation";
+import { supabaseServer } from "@/lib/supabase/server";
 
-export default function SignupPage() {
-  const supabase = createSupabaseBrowserClient();
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const { error } = await searchParams;
 
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [msg, setMsg] = useState<string | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  async function signUp(formData: FormData) {
+    "use server";
+    const supabase = await supabaseServer();
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setErr(null);
-    setMsg(null);
-    setLoading(true);
+    const email = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
 
-    const { error } = await supabase.auth.signUp({ email: email.trim(), password });
-
-    setLoading(false);
-
-    if (error) {
-      setErr(error.message);
-      return;
+    if (!email || !password) {
+      redirect("/signup?error=Please+fill+in+all+fields.");
     }
 
-    setMsg("Check your email for a confirmation link, then sign in.");
+    if (password.length < 6) {
+      redirect("/signup?error=Password+must+be+at+least+6+characters.");
+    }
+
+    const { error } = await supabase.auth.signUp({ email, password });
+
+    if (error) {
+      redirect(`/signup?error=${encodeURIComponent(error.message)}`);
+    }
+
+    redirect(
+      `/login?success=${encodeURIComponent(
+        "Account created! Check your email to confirm, then sign in."
+      )}`
+    );
   }
 
   return (
     <main className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
 
+        {/* Brand */}
         <div className="mb-8 text-center">
-          <div className="text-2xl font-bold">BankrollPro</div>
+          <div className="text-2xl font-bold tracking-tight">BankrollPro</div>
           <div className="mt-1 text-sm text-slate-500">Smart bankroll management</div>
         </div>
 
-        <div className="rounded-2xl border bg-white p-8 shadow-sm">
+        {/* Card */}
+        <div className="rounded-2xl border border-slate-200 bg-white px-8 py-8 shadow-sm">
           <h1 className="text-xl font-semibold text-slate-900">Create an account</h1>
           <p className="mt-1 text-sm text-slate-500">Start tracking your bankroll today</p>
 
-          {msg ? (
-            <div className="mt-6 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-emerald-700">
-              {msg}
+          <form action={signUp} className="mt-6 space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+                Email address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@example.com"
+                required
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+              />
             </div>
-          ) : (
-            <form onSubmit={onSubmit} className="mt-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-black"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  required
-                />
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Min. 6 characters"
+                required
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+              />
+            </div>
+
+            {/* Error message */}
+            {error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
+                {error}
               </div>
+            )}
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-black"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete="new-password"
-                  placeholder="••••••••"
-                  required
-                />
-              </div>
-
-              {err && (
-                <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2.5 text-sm text-red-600">
-                  {err}
-                </div>
-              )}
-
-              <button
-                disabled={loading}
-                className="w-full rounded-xl bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60 transition-colors"
-              >
-                {loading ? "Creating account…" : "Create account"}
-              </button>
-            </form>
-          )}
+            <button
+              type="submit"
+              className="w-full rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-slate-700 active:bg-slate-800 transition-colors"
+            >
+              Create account
+            </button>
+          </form>
         </div>
 
-        <p className="mt-4 text-center text-sm text-slate-500">
+        {/* Footer link */}
+        <p className="mt-5 text-center text-sm text-slate-500">
           Already have an account?{" "}
-          <Link href="/login" className="font-semibold text-black hover:underline">
+          <Link href="/login" className="font-semibold text-slate-900 hover:underline">
             Sign in
           </Link>
         </p>
